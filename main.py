@@ -10,8 +10,8 @@ def start_program():
 
     log_message("Программа запущена")
 
-    email = "abram13062004@gmail.com"
-    password = "13062004"
+    #email =
+    #password =
 
     browser = BrowserService()
 
