@@ -1,7 +1,9 @@
 from datetime import datetime
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
 from logger_config import log_message
 
 
@@ -12,65 +14,59 @@ class ScheduleService:
         self.auth_service = auth_service
 
     def get_schedule(self):
-
-        self.browser.start()
-        self.auth_service.open_schedule()
-
-        driver = self.browser.driver
-
-        log_message("Получение расписания")
-
         schedule_data = {}
-
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "simple-little-table"))
-        )
-
-        table = driver.find_element(By.CLASS_NAME, "simple-little-table")
-        rows = table.find_elements(By.TAG_NAME, "tr")
-
         now_date = datetime.now().strftime("%d.%m.%Y")
 
-        reading_today = False
+        try:
+            self.browser.start()
+            self.auth_service.open_schedule()
 
-        for row in rows:
+            driver = self.browser.driver
+            log_message("Получение расписания")
 
-            cells = row.find_elements(By.TAG_NAME, "td")
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located(
+                    (By.CLASS_NAME, "simple-little-table")
+                )
+            )
 
-            if len(cells) == 1:
+            table = driver.find_element(By.CLASS_NAME, "simple-little-table")
+            rows = table.find_elements(By.TAG_NAME, "tr")
 
-                if now_date in cells[0].text:
-                    reading_today = True
+            reading_today = False
+
+            for row in rows:
+                cells = row.find_elements(By.TAG_NAME, "td")
+
+                if len(cells) == 1:
+                    reading_today = now_date in cells[0].text
                     continue
-                else:
-                    reading_today = False
+
+                if not reading_today or len(cells) < 2:
                     continue
 
-            if not reading_today:
-                continue
+                try:
+                    time_text = cells[0].text
+                    start_time = time_text.split("(")[1].split("-")[0].zfill(5)
 
-            if len(cells) < 2:
-                continue
+                    lesson_name = cells[1].find_element(
+                        By.TAG_NAME, "b"
+                    ).text.strip()
 
-            try:
+                    schedule_data[start_time] = {
+                        "name": lesson_name
+                    }
+                except (IndexError, ValueError):
+                    continue
+                except Exception as exc:
+                    log_message(f"Ошибка чтения строки расписания: {exc}")
 
-                time_text = cells[0].text
-                start_time = time_text.split("(")[1].split("-")[0].zfill(5)
+            log_message(f"Расписание на {now_date}")
 
-                lesson_name = cells[1].find_element(By.TAG_NAME, "b").text.strip()
+            for time_key, lesson in schedule_data.items():
+                log_message(f"{time_key} — {lesson['name']}")
 
-                schedule_data[start_time] = {
-                    "name": lesson_name
-                }
+            return schedule_data
 
-            except Exception:
-                continue
-
-        log_message(f"Расписание на {now_date}")
-
-        for time_key, lesson in schedule_data.items():
-            log_message(f"{time_key} — {lesson['name']}")
-
-        self.browser.stop()
-
-        return schedule_data
+        finally:
+            self.browser.stop()
